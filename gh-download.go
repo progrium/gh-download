@@ -116,6 +116,6 @@ func main() {
 	})
 
 	http.Handle("/", r)
-	log.Println("serving on port", port, "...")
+	log.Println("serving on port", port, "for", owner, "...")
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
