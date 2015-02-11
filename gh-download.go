@@ -28,6 +28,13 @@ func marshal(obj interface{}) []byte {
 	return bytes
 }
 
+func normalVersion(version string) string {
+	if version[0] == 'v' {
+		return version[1:]
+	}
+	return version
+}
+
 func expandVersion(releases []github.RepositoryRelease, version string) string {
 	var release github.RepositoryRelease
 	if version == "latest" {
@@ -66,7 +73,7 @@ func main() {
 			log.Println("error:", err)
 			return
 		}
-		io.WriteString(w, expandVersion(releases, "latest")+"\n")
+		io.WriteString(w, normalVersion(expandVersion(releases, "latest"))+"\n")
 	})
 
 	r.HandleFunc("/{repo}/{tag}/{platform}.{ext}", func(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +95,7 @@ func main() {
 			return
 		}
 		assetFilename := fmt.Sprintf("%s_%s_%s_%s.%s",
-			vars["repo"], version[1:], platform[0], platform[1], vars["ext"])
+			vars["repo"], normalVersion(version), platform[0], platform[1], vars["ext"])
 		downloadUrl := fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/%s",
 			owner, vars["repo"], version, assetFilename)
 		resp, err := http.Get(downloadUrl)
