@@ -109,6 +109,7 @@ func main() {
 		} else {
 			log.Println("error:", resp.Status, downloadUrl)
 		}
+		w.Header().Set("Backend-Url", downloadUrl)
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
 		resp.Body.Close()
