@@ -85,10 +85,12 @@ func main() {
 			return
 		}
 		version := expandVersion(releases, vars["tag"])
+		w.Header().Set("Version", version)
 		if version == "" {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
+		w.Header().Set("Platform", vars["platform"])
 		platform := strings.SplitN(strings.ToLower(vars["platform"]), "_", 2)
 		if len(platform) < 2 {
 			http.Error(w, "Not found", http.StatusNotFound)
