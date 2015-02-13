@@ -53,6 +53,24 @@ func expandVersion(releases []github.RepositoryRelease, version string) string {
 	return *release.TagName
 }
 
+func proxyDownload(w http.ResponseWriter, url string) {
+	resp, err := http.Get(url)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		log.Println("error:", err)
+		return
+	}
+	if resp.StatusCode == 200 {
+		log.Println("download:", url)
+	} else {
+		log.Println("error:", resp.Status, url)
+	}
+	w.Header().Set("Backend-Url", url)
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+	resp.Body.Close()
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	owner := os.Getenv("GITHUB_OWNER")
@@ -76,6 +94,30 @@ func main() {
 		io.WriteString(w, normalVersion(expandVersion(releases, "latest"))+"\n")
 	})
 
+	r.HandleFunc("/{repo}/{tag}.{ext}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		releases, _, err := client.Repositories.ListReleases(owner, vars["repo"], nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			log.Println("error:", err)
+			return
+		}
+		version := expandVersion(releases, vars["tag"])
+		w.Header().Set("Version", version)
+		if version == "" {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		proxyDownload(w, fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/%s",
+			owner,
+			vars["repo"],
+			version,
+			fmt.Sprintf("%s_%s.%s",
+				vars["repo"],
+				version,
+				vars["ext"])))
+	})
+
 	r.HandleFunc("/{repo}/{tag}/{platform}.{ext}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		releases, _, err := client.Repositories.ListReleases(owner, vars["repo"], nil)
@@ -96,25 +138,16 @@ func main() {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
-		assetFilename := fmt.Sprintf("%s_%s_%s_%s.%s",
-			vars["repo"], normalVersion(version), platform[0], platform[1], vars["ext"])
-		downloadUrl := fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/%s",
-			owner, vars["repo"], version, assetFilename)
-		resp, err := http.Get(downloadUrl)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			log.Println("error:", err)
-			return
-		}
-		if resp.StatusCode == 200 {
-			log.Println("download:", downloadUrl)
-		} else {
-			log.Println("error:", resp.Status, downloadUrl)
-		}
-		w.Header().Set("Backend-Url", downloadUrl)
-		w.WriteHeader(resp.StatusCode)
-		io.Copy(w, resp.Body)
-		resp.Body.Close()
+		proxyDownload(w, fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/%s",
+			owner,
+			vars["repo"],
+			version,
+			fmt.Sprintf("%s_%s_%s_%s.%s",
+				vars["repo"],
+				normalVersion(version),
+				platform[0],
+				platform[1],
+				vars["ext"])))
 	})
 
 	http.Handle("/", r)
