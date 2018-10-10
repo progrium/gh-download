@@ -1,1 +1,1 @@
-web: gh-download
+web:  npm  start 
